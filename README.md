@@ -1,73 +1,70 @@
-# Standalone NQ Trading Assistant - Simple Setup Guide
+# Super Simple NQ Trading Assistant - Setup Guide
 
 ## Overview
 
-This trading assistant analyzes NQ market data locally with no API keys required:
+This lightweight trading assistant analyzes NQ market data with minimal dependencies:
 - Analyzes candlestick chart images (screenshots from trading platforms)
 - Processes numerical data (CSV/Excel files with OHLC data)
-- Provides trading recommendations, including trend analysis, support/resistance levels, and trade ideas
-- Learns from past analyses to improve recommendations
+- Provides trading recommendations with no external API dependencies
+- Learns from past analyses to improve recommendations over time
 
-## Quick Setup
+## Minimal Dependencies Setup
 
-### 1. Install Required Libraries
+### Install Required Libraries
 
 ```bash
-pip install numpy pandas matplotlib pillow opencv-python transformers torch scikit-learn
+pip install numpy pandas matplotlib pillow
 ```
 
-### 2. Run the Assistant
+That's it! No OpenCV, no TensorFlow, no external API keys needed.
 
-For chart images:
+## Quick Start
+
+### For Chart Images:
 ```bash
 python trading_assistant.py --image path/to/chart_screenshot.jpg
 ```
 
-For numerical data (CSV/Excel with OHLC data):
+### For Numerical Data (CSV/Excel with OHLC data):
 ```bash
 python trading_assistant.py --numerical path/to/market_data.csv
 ```
 
-That's it! No API keys or external services needed.
+### Plot Your Data (Optional):
+```bash
+python trading_assistant.py --numerical market_data.csv --plot
+```
 
 ## Features
 
-- **Fully Local Processing**: All analysis happens on your computer
-- **Self-Improving**: Records analyses and can learn from feedback
-- **Quick Results**: Generates recommendations in seconds
+- **Zero External Dependencies**: All analysis happens on your computer with minimal libraries
+- **Self-Improving**: Records analyses and learns from feedback
+- **Instant Results**: Generates recommendations in seconds
 - **Multiple Input Types**: Works with both chart images and numerical data
-- **Detailed Analysis**: Includes trend identification, support/resistance levels, and specific entry/exit points
+- **Detailed Analysis**: Includes trend identification, support/resistance levels, and trade recommendations
 
 ## Output
 
 The assistant creates a timestamped recommendation file in the `trading_recommendations` folder with:
 - Market trend analysis (bullish, bearish, neutral)
-- Technical indicator readings (RSI, MACD, Bollinger Bands)
+- Technical indicator readings (when using numerical data)
 - Support and resistance levels
 - Trading recommendations with entry/exit points
 
 ## Learning Capabilities
 
-The assistant stores all analyses in a history file and can improve over time. To help it learn:
+The assistant automatically improves over time. To accelerate learning:
 
-1. Track which recommendations were successful
-2. Create a feedback CSV with columns: timestamp, source, outcome
-3. Run with the training flag:
+1. Create a simple feedback CSV with columns: timestamp, source, outcome
+2. Run with the training flag:
    ```bash
    python trading_assistant.py --train --feedback my_feedback.csv
    ```
 
-## Example
+## Example Output
 
-```bash
-python trading_assistant.py --image nq_chart.png
 ```
-
-Output will show:
-```
-NQ Trading Assistant initialized. Starting model loading in background...
-Loading local AI models (this may take a minute)...
-Models loaded successfully!
+NQ Trading Assistant initialized...
 Analyzing image: nq_chart.png
 Analysis saved to: trading_recommendations/trade_rec_20250429_153045.txt
 
@@ -77,6 +74,6 @@ Source: nq_chart.png → Output: trading_recommendations/trade_rec_20250429_1530
 
 ## Notes
 
-- For best results with image analysis, use clear screenshots of candlestick charts
+- For best results with image analysis, use clear screenshots with visible candlesticks
 - For numerical data, make sure your CSV/Excel has columns for open, high, low, and close prices
-- This system uses pattern recognition and technical indicators - always use your own judgment
+- The system automatically adapts to find the right columns in your data

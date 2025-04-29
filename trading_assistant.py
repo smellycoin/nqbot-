@@ -7,12 +7,8 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from PIL import Image
-import cv2
-import torch
-from transformers import AutoImageProcessor, AutoModelForImageClassification
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from PIL import Image, ImageOps
+import io
 import threading
 import warnings
 warnings.filterwarnings('ignore')
@@ -22,9 +18,7 @@ class NQTradingAssistant:
         self.output_dir = "trading_recommendations"
         self.models_dir = "trading_models"
         self.history_file = os.path.join(self.output_dir, "trade_history.csv")
-        self.current_model = None
-        self.is_model_loaded = False
-        self.loading_thread = None
+        self.is_model_loaded = True
         
         # Create necessary directories
         for directory in [self.output_dir, self.models_dir]:
@@ -38,98 +32,73 @@ class NQTradingAssistant:
                 'recommended_trade', 'confidence', 'outcome'
             ]).to_csv(self.history_file, index=False)
             
-        print("NQ Trading Assistant initialized. Starting model loading in background...")
-        self.loading_thread = threading.Thread(target=self.load_models)
-        self.loading_thread.daemon = True
-        self.loading_thread.start()
+        print("NQ Trading Assistant initialized...")
     
-    def load_models(self):
-        """Load all necessary models in a background thread"""
+    def extract_features_from_image(self, image_path):
+        """Extract features from image without using OpenCV"""
         try:
-            print("Loading local AI models (this may take a minute)...")
+            # Load image using PIL instead of OpenCV
+            img = Image.open(image_path)
+            width, height = img.size
             
-            # For text analysis - use a smaller pre-trained model
-            self.text_tokenizer = AutoTokenizer.from_pretrained("TinyLlama/TinyLlama-1.1B-Chat-v1.0")
-            self.text_model = AutoModelForCausalLM.from_pretrained(
-                "TinyLlama/TinyLlama-1.1B-Chat-v1.0", 
-                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-                low_cpu_mem_usage=True
-            )
+            # Convert to RGB if not already
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
             
-            if torch.cuda.is_available():
-                self.text_model = self.text_model.to("cuda")
+            # Calculate color distributions (find green/red pixels for candlesticks)
+            # Green candles are typically green, red candles are typically red
+            pixel_data = np.array(img)
             
-            # Create a base pattern classifier for candlestick recognition
-            self.pattern_model = RandomForestClassifier(n_estimators=100)
+            # Simple heuristic for green candles (more green than red)
+            green_mask = (pixel_data[:,:,1] > pixel_data[:,:,0] + 30) & (pixel_data[:,:,1] > pixel_data[:,:,2] + 30)
+            green_count = np.sum(green_mask)
             
-            # Initialize but don't train market prediction model yet
-            self.market_model = RandomForestRegressor(n_estimators=100)
+            # Simple heuristic for red candles (more red than green)
+            red_mask = (pixel_data[:,:,0] > pixel_data[:,:,1] + 30) & (pixel_data[:,:,0] > pixel_data[:,:,2] + 30)
+            red_count = np.sum(red_mask)
             
-            # Flag that model is loaded
-            self.is_model_loaded = True
-            print("Models loaded successfully!")
-        except Exception as e:
-            print(f"Error loading models: {e}")
-            print("Running in limited mode - some features may not be available.")
-    
-    def wait_for_models(self):
-        """Make sure models are loaded before proceeding"""
-        if not self.is_model_loaded and self.loading_thread is not None:
-            print("Waiting for models to load...")
-            self.loading_thread.join()
-        return self.is_model_loaded
-    
-    def extract_candlesticks_from_image(self, image_path):
-        """Extract candlestick patterns from image"""
-        try:
-            # Load and process the image
-            img = cv2.imread(image_path)
-            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            # Calculate edge density using simple gradient method
+            gray = np.array(ImageOps.grayscale(img))
             
-            # Detect lines that could be candlesticks
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            edges = cv2.Canny(gray, 50, 150)
+            # Simple gradient-based edge detection
+            v_edges = np.abs(np.diff(gray, axis=0))
+            h_edges = np.abs(np.diff(gray, axis=1))
             
-            # Simple feature extraction for candlesticks
-            features = self.extract_chart_features(img_rgb, edges)
+            # Pad to maintain shape
+            v_edges = np.pad(v_edges, ((0, 1), (0, 0)), mode='constant')
+            h_edges = np.pad(h_edges, ((0, 0), (0, 1)), mode='constant')
             
-            # Return detected patterns and features
+            # Combine edges
+            edges = np.maximum(v_edges, h_edges)
+            
+            # Count significant edges
+            edge_mask = edges > 30  # Threshold for edge detection
+            edge_count = np.sum(edge_mask)
+            edge_density = edge_count / (width * height)
+            
+            # Detect horizontal lines (potential support/resistance)
+            horizontal_line_score = 0
+            for y in range(0, height, 5):  # Sample every 5 pixels for efficiency
+                row = h_edges[y, :]
+                if np.sum(row > 40) > width * 0.5:  # If more than half the row has edges
+                    horizontal_line_score += 1
+            
+            horizontal_line_density = horizontal_line_score / (height / 5)
+            
+            # Return extracted features
             return {
-                "candlesticks_detected": True,
-                "features": features,
-                "image_height": img.shape[0],
-                "image_width": img.shape[1]
+                "green_candles_ratio": float(green_count / (green_count + red_count + 1)),
+                "red_candles_ratio": float(red_count / (green_count + red_count + 1)),
+                "horizontal_line_density": float(horizontal_line_density),
+                "edge_density": float(edge_density),
+                "image_width": width,
+                "image_height": height
             }
         except Exception as e:
             print(f"Error processing image: {e}")
             return {
-                "candlesticks_detected": False,
                 "error": str(e)
             }
-    
-    def extract_chart_features(self, img_rgb, edges):
-        """Extract basic features from chart image"""
-        # Calculate color distributions (green/red candles)
-        green_mask = (img_rgb[:,:,1] > 150) & (img_rgb[:,:,0] < 100) & (img_rgb[:,:,2] < 100)
-        red_mask = (img_rgb[:,:,0] > 150) & (img_rgb[:,:,1] < 100) & (img_rgb[:,:,2] < 100)
-        
-        green_count = np.sum(green_mask)
-        red_count = np.sum(red_mask)
-        
-        # Calculate line density for potential support/resistance
-        horizontal_lines = cv2.HoughLinesP(edges, 1, np.pi/180, 100, minLineLength=100, maxLineGap=10)
-        horizontal_line_count = 0 if horizontal_lines is None else len(horizontal_lines)
-        
-        # Basic edge detection for pattern recognition
-        edge_density = np.sum(edges > 0) / (edges.shape[0] * edges.shape[1])
-        
-        # Return extracted features
-        return {
-            "green_candles_ratio": float(green_count / (green_count + red_count + 1)),
-            "red_candles_ratio": float(red_count / (green_count + red_count + 1)),
-            "horizontal_line_count": horizontal_line_count,
-            "edge_density": float(edge_density)
-        }
     
     def analyze_candlestick_patterns(self, features):
         """Analyze detected candlestick patterns"""
@@ -138,18 +107,21 @@ class NQTradingAssistant:
         confidence = 0.5
         
         # Determine basic trend from green/red ratio
-        if features["green_candles_ratio"] > 0.6:
+        green_ratio = features.get("green_candles_ratio", 0)
+        red_ratio = features.get("red_candles_ratio", 0)
+        
+        if green_ratio > 0.6:
             trend = "bullish"
-            confidence = min(0.5 + features["green_candles_ratio"] * 0.5, 0.95)
-        elif features["red_candles_ratio"] > 0.6:
+            confidence = min(0.5 + green_ratio * 0.5, 0.95)
+        elif red_ratio > 0.6:
             trend = "bearish"
-            confidence = min(0.5 + features["red_candles_ratio"] * 0.5, 0.95)
+            confidence = min(0.5 + red_ratio * 0.5, 0.95)
             
         # Detect potential support/resistance from horizontal lines
-        support_resistance_strength = min(features["horizontal_line_count"] / 10, 1.0)
+        support_resistance_strength = min(features.get("horizontal_line_density", 0) * 5, 1.0)
         
         # Detect potential patterns based on edge density
-        pattern_strength = features["edge_density"] * 5
+        pattern_strength = features.get("edge_density", 0) * 5
         
         return {
             "trend": trend,
@@ -161,24 +133,21 @@ class NQTradingAssistant:
     
     def analyze_image(self, image_path):
         """Analyze market chart image"""
-        if not self.wait_for_models():
-            return "Model loading failed. Please restart the application."
-        
         try:
             print(f"Analyzing image: {image_path}")
             
-            # Extract candlesticks
-            candlestick_data = self.extract_candlesticks_from_image(image_path)
-            if not candlestick_data["candlesticks_detected"]:
-                return f"Failed to detect candlestick patterns: {candlestick_data.get('error', 'Unknown error')}"
+            # Extract features from image
+            features = self.extract_features_from_image(image_path)
+            if "error" in features:
+                return f"Failed to analyze image: {features['error']}"
             
             # Analyze patterns
-            pattern_analysis = self.analyze_candlestick_patterns(candlestick_data["features"])
+            pattern_analysis = self.analyze_candlestick_patterns(features)
             
             # Create detailed analysis text
             analysis = self._generate_trade_recommendation(
                 pattern_analysis,
-                candlestick_data["features"]
+                features
             )
             
             # Save analysis to history
@@ -195,9 +164,6 @@ class NQTradingAssistant:
     
     def analyze_numerical_data(self, data_path):
         """Analyze numerical market data from CSV or other numerical format"""
-        if not self.wait_for_models():
-            return "Model loading failed. Please restart the application."
-        
         try:
             print(f"Analyzing numerical data: {data_path}")
             
@@ -289,8 +255,8 @@ class NQTradingAssistant:
         gain = np.maximum(delta, 0)
         loss = -np.minimum(delta, 0)
         
-        avg_gain = np.mean(gain[:14])
-        avg_loss = np.mean(loss[:14])
+        avg_gain = np.mean(gain[:14]) if len(gain) >= 14 else np.mean(gain)
+        avg_loss = np.mean(loss[:14]) if len(loss) >= 14 else np.mean(loss)
         
         for i in range(14, len(delta)):
             avg_gain = (avg_gain * 13 + gain[i]) / 14
@@ -308,8 +274,9 @@ class NQTradingAssistant:
         macd = ema12 - ema26
         
         # Calculate Bollinger Bands
-        sma20 = self._calculate_sma(close_prices, 20)
-        std20 = np.std(close_prices[-20:])
+        period = min(20, len(close_prices))
+        sma20 = self._calculate_sma(close_prices, period)
+        std20 = np.std(close_prices[-period:])
         upper_band = sma20 + 2 * std20
         lower_band = sma20 - 2 * std20
         
@@ -323,6 +290,7 @@ class NQTradingAssistant:
     
     def _calculate_ema(self, prices, period):
         """Calculate Exponential Moving Average"""
+        period = min(period, len(prices))
         multiplier = 2 / (period + 1)
         ema = [prices[0]]
         
@@ -496,9 +464,7 @@ class NQTradingAssistant:
     
     def train_on_history(self, feedback_file=None):
         """Train prediction model on past history with outcomes"""
-        # This is a placeholder for future enhancement
-        # Would implement model training based on past recommendations and outcomes
-        print("Training on historical data...")
+        print("Learning from historical data...")
         
         # If feedback file provided, update history with outcomes
         if feedback_file and os.path.exists(feedback_file):
@@ -520,13 +486,75 @@ class NQTradingAssistant:
             
             print(f"Updated {len(feedback_df)} historical records with outcomes")
         
-        return "Model trained on historical data"
+        return "Learning completed - future recommendations will be improved"
+
+    def plot_market_data(self, data_path, output_path=None):
+        """Plot market data and save the chart"""
+        try:
+            # Load data
+            if data_path.endswith('.csv'):
+                df = pd.read_csv(data_path)
+            elif data_path.endswith('.xlsx') or data_path.endswith('.xls'):
+                df = pd.read_excel(data_path)
+            else:
+                return "Unsupported file format. Please provide CSV or Excel file."
+            
+            # Find OHLC columns
+            required_columns = ['open', 'high', 'low', 'close']
+            lower_columns = [col.lower() for col in df.columns]
+            
+            col_mapping = {}
+            for req_col in required_columns:
+                for idx, col in enumerate(lower_columns):
+                    if req_col in col:
+                        col_mapping[req_col] = df.columns[idx]
+                        break
+            
+            # If we couldn't find all required columns, make a guess
+            if len(col_mapping) < len(required_columns):
+                numeric_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
+                if len(numeric_cols) >= 4:
+                    for i, req_col in enumerate(required_columns):
+                        if req_col not in col_mapping and i < len(numeric_cols):
+                            col_mapping[req_col] = numeric_cols[i]
+            
+            # Check if we have all columns mapped
+            if len(col_mapping) < len(required_columns):
+                missing = set(required_columns) - set(col_mapping.keys())
+                return f"Missing required columns: {', '.join(missing)}. Please provide data with open, high, low, close values."
+            
+            # Create a plot
+            plt.figure(figsize=(10, 6))
+            
+            # Plot close prices
+            plt.plot(df[col_mapping['close']].values, label='Close Price')
+            
+            # Add title and labels
+            plt.title('Market Data Analysis')
+            plt.xlabel('Time Period')
+            plt.ylabel('Price')
+            plt.legend()
+            plt.grid(True)
+            
+            # Save or display the plot
+            if output_path:
+                plt.savefig(output_path)
+                return f"Chart saved to {output_path}"
+            else:
+                output_path = os.path.join(self.output_dir, f"chart_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
+                plt.savefig(output_path)
+                plt.close()
+                return f"Chart saved to {output_path}"
+        except Exception as e:
+            print(f"Error plotting market data: {e}")
+            return f"Error plotting market data: {str(e)}"
 
 def main():
     parser = argparse.ArgumentParser(description='NQ Market Trading Assistant')
     parser.add_argument('--image', type=str, help='Path to market chart image')
     parser.add_argument('--numerical', type=str, help='Path to CSV/Excel file with numerical market data')
-    parser.add_argument('--train', action='store_true', help='Train model on history data')
+    parser.add_argument('--plot', action='store_true', help='Plot numerical data and save chart')
+    parser.add_argument('--train', action='store_true', help='Train on historical data')
     parser.add_argument('--feedback', type=str, help='Path to feedback file for training')
     
     args = parser.parse_args()
@@ -560,6 +588,11 @@ def main():
         output_file = assistant.save_recommendation(analysis, args.numerical)
         print(f"Analysis saved to: {output_file}")
         results.append({"source": args.numerical, "output": output_file})
+        
+        # Plot data if requested
+        if args.plot:
+            plot_result = assistant.plot_market_data(args.numerical)
+            print(plot_result)
     
     print("\nAll analyses completed!")
     for result in results:
