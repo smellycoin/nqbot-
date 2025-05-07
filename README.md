@@ -1,79 +1,87 @@
-# Super Simple NQ Trading Assistant - Setup Guide
+markdown
+# NQ Trading Assistant
 
-## Overview
-
-This lightweight trading assistant analyzes NQ market data with minimal dependencies:
-- Analyzes candlestick chart images (screenshots from trading platforms)
-- Processes numerical data (CSV/Excel files with OHLC data)
-- Provides trading recommendations with no external API dependencies
-- Learns from past analyses to improve recommendations over time
-
-## Minimal Dependencies Setup
-
-### Install Required Libraries
-
-```bash
-pip install numpy pandas matplotlib pillow
-```
-
-That's it! No OpenCV, no TensorFlow, no external API keys needed.
-
-## Quick Start
-
-### For Chart Images:
-```bash
-python trading_assistant.py --image path/to/chart_screenshot.jpg
-```
-
-### For Numerical Data (CSV/Excel with OHLC data):
-```bash
-python trading_assistant.py --numerical path/to/market_data.csv
-```
-
-### Plot Your Data (Optional):
-```bash
-python trading_assistant.py --numerical market_data.csv --plot
-```
+An AI-powered trading analysis tool that provides market insights from chart images or numerical data, with optional lightweight LLM integration for enhanced analysis.
 
 ## Features
 
-- **Zero External Dependencies**: All analysis happens on your computer with minimal libraries
-- **Self-Improving**: Records analyses and learns from feedback
-- **Instant Results**: Generates recommendations in seconds
-- **Multiple Input Types**: Works with both chart images and numerical data
-- **Detailed Analysis**: Includes trend identification, support/resistance levels, and trade recommendations
+- **Chart Image Analysis**: Detects trends, support/resistance, and liquidity zones from candlestick charts
+- **Numerical Data Processing**: Analyzes OHLC data to identify trends and key levels
+- **Liquidity Detection**: Identifies potential liquidity zones in price action
+- **Optional LLM Integration**: Get AI-powered market insights (requires `transformers` package)
+- **Historical Learning**: Improves recommendations based on past analysis
 
-## Output
+## Installation
 
-The assistant creates a timestamped recommendation file in the `trading_recommendations` folder with:
-- Market trend analysis (bullish, bearish, neutral)
-- Technical indicator readings (when using numerical data)
-- Support and resistance levels
-- Trading recommendations with entry/exit points
+### Minimal Installation (No LLM)
+```bash
+pip install numpy pandas matplotlib pillow
+Full Installation (With LLM Support)
+bash
+pip install numpy pandas matplotlib pillow transformers torch
+Usage
+Basic Usage (Without LLM)
+bash
+# Analyze a chart image
+python trading_assistant.py --image path/to/chart.png
 
-## Learning Capabilities
+# Analyze numerical data (CSV/Excel)
+python trading_assistant.py --numerical path/to/data.csv
 
-The assistant automatically improves over time. To accelerate learning:
+# Plot numerical data
+python trading_assistant.py --numerical path/to/data.csv --plot
+Advanced Usage (With LLM)
+bash
+# Analyze with LLM insights
+python trading_assistant.py --image path/to/chart.png --use_llm
 
-1. Create a simple feedback CSV with columns: timestamp, source, outcome
-2. Run with the training flag:
-   ```bash
-   python trading_assistant.py --train --feedback my_feedback.csv
-   ```
+# Analyze numerical data with LLM
+python trading_assistant.py --numerical path/to/data.csv --use_llm
+Training Mode
+bash
+# Train on historical data
+python trading_assistant.py --train
 
-## Example Output
+# Train with feedback data
+python trading_assistant.py --train --feedback path/to/feedback.csv
+Input Formats
+Image Analysis
+Supports PNG, JPG, BMP formats
 
-```
-NQ Trading Assistant initialized...
-Analyzing image: nq_chart.png
-Analysis saved to: trading_recommendations/trade_rec_20250429_153045.txt
+Recommended: Clean candlestick charts (600x400px or larger)
 
-All analyses completed!
-Source: nq_chart.png → Output: trading_recommendations/trade_rec_20250429_153045.txt
-```
+Numerical Data
+CSV or Excel files
 
-## Notes
+Should contain OHLC columns (Open, High, Low, Close)
 
-- For best results with image analysis, use clear screenshots with visible candlesticks
-- For numerical data, make sure your CSV/Excel has columns for open, high, low, and close prices
-- The system automatically adapts to find the right columns in your data
+Column names auto-detected (case insensitive)
+
+Output
+Analysis results are saved in:
+
+./trading_recommendations/ (text reports)
+
+./trading_models/ (learned models)
+
+Performance Notes
+Without LLM: Runs instantly on any modern computer
+
+With LLM: First run will download ~300MB model (one-time)
+
+Subsequent LLM runs use ~1GB RAM
+
+Troubleshooting
+LLM not working?
+
+bash
+# Try with CPU-only (if GPU issues occur)
+pip uninstall torch -y
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+Missing dependencies?
+
+bash
+pip install --upgrade -r requirements.txt
+License
+MIT License - Free for personal and commercial use
+
