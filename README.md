@@ -170,4 +170,5 @@ MIT
 ```bash
 - EleutherAI/pythia-1.4b
 - gpt2 
-- TinyLlama/TinyLlama-1.1B-Chat-v1.0```
+- TinyLlama/TinyLlama-1.1B-Chat-v1.0
+```
