@@ -167,7 +167,7 @@ See the code and comments in `nqbot.py` for more details on LLM model loading an
 ## License
 MIT
 **WORKING AI LIST** 
-``bash
+```bash
 - EleutherAI/pythia-1.4b
 - gpt2 
-- TinyLlama/TinyLlama-1.1B-Chat-v1.0``
+- TinyLlama/TinyLlama-1.1B-Chat-v1.0```
