@@ -166,3 +166,9 @@ See the code and comments in `nqbot.py` for more details on LLM model loading an
 - recommended models are: `TinyLlama/TinyLlama-1.1B-Chat-v1.0` and `gpt2` (`gpt2` is default). (this will be updated with time.) 
 ## License
 MIT
+**WORKING AI LIST** 
+``bash
+- EleutherAI/pythia-1.4b
+- gpt2 
+- TinyLlama/TinyLlama-1.1B-Chat-v1.0
+``
