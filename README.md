@@ -2,6 +2,10 @@
 
 A powerful, self-learning trading assistant for analyzing market chart images, detecting liquidity zones, candlestick patterns, and generating advanced trading insights using machine learning and optional LLMs. Supports dynamic learning from user feedback and real-time market data.
 
+## WARNING 
+- I am not responsible for anything done with this application. it is NOT proffessional adivce. do not use this with actual money. if you do, know you are assuming the risk. 
+
+
 ## Features
 - Chart image analysis for trend, support/resistance, and liquidity zones
 - Candlestick pattern recognition
