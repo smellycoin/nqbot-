@@ -158,6 +158,7 @@ See the code and comments in `nqbot.py` for more details on LLM model loading an
 ## Requirements
 - Python 3.8+
 - See `requirements.txt` for full dependency list
-
+- `pip install numpy pandas matplotlib pillow scikit-learn transformers torch` for cmd only installation. 
+- recommended models are: `TinyLlama/TinyLlama-1.1B-Chat-v1.0` and `gpt2` (`gpt2` is default). (this will be updated with time.) 
 ## License
 MIT
