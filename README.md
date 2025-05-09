@@ -168,7 +168,7 @@ See the code and comments in `nqbot.py` for more details on LLM model loading an
 MIT
 **WORKING AI LIST** 
 ```bash
-- EleutherAI/pythia-1.4b
+- EleutherAI/pythia-1.4b <-- what im currently using. 
 - gpt2 
 - TinyLlama/TinyLlama-1.1B-Chat-v1.0
 ```
